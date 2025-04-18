@@ -1,3 +1,4 @@
+
 <?php
 session_start();
 require_once 'php/db_connect.php';
@@ -10,10 +11,11 @@ if (!isset($_SESSION['user_id'])) {
 
 $user_id = $_SESSION['user_id'];
 $upload_message = '';
+$password_message = '';
 
 // Handle profile picture upload
 if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_FILES['profile_picture'])) {
-    $upload_dir = "uploads/profile_pictures/";
+    $upload_dir = "Uploads/profile_pictures/";
     if (!is_dir($upload_dir)) {
         mkdir($upload_dir, 0755, true);
     }
@@ -44,6 +46,32 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_FILES['profile_picture'])) {
     }
 }
 
+// Handle password change
+if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['current_password'], $_POST['new_password'], $_POST['confirm_password'])) {
+    $current_password = $_POST['current_password'];
+    $new_password = $_POST['new_password'];
+    $confirm_password = $_POST['confirm_password'];
+
+    // Fetch current password
+    $stmt = $pdo->prepare("SELECT password FROM users WHERE id = ?");
+    $stmt->execute([$user_id]);
+    $user = $stmt->fetch(PDO::FETCH_ASSOC);
+
+    if (!password_verify($current_password, $user['password'])) {
+        $password_message = "Error: Current password is incorrect.";
+    } elseif (strlen($new_password) < 8) {
+        $password_message = "Error: New password must be at least 8 characters long.";
+    } elseif ($new_password !== $confirm_password) {
+        $password_message = "Error: New passwords do not match.";
+    } else {
+        // Update password
+        $hashed_password = password_hash($new_password, PASSWORD_BCRYPT);
+        $stmt = $pdo->prepare("UPDATE users SET password = ? WHERE id = ?");
+        $stmt->execute([$hashed_password, $user_id]);
+        $password_message = "Password changed successfully!";
+    }
+}
+
 // Fetch user data
 $stmt = $pdo->prepare("SELECT username, email, created_at, profile_picture FROM users WHERE id = ?");
 $stmt->execute([$user_id]);
@@ -55,7 +83,7 @@ if (!$user) {
 }
 
 // Set profile picture path
-$profile_picture = $user['profile_picture'] ? "uploads/profile_pictures/" . $user['profile_picture'] : "https://via.placeholder.com/150";
+$profile_picture = $user['profile_picture'] ? "Uploads/profile_pictures/" . $user['profile_picture'] : "https://via.placeholder.com/150";
 
 // Fetch reading stats
 $stmt = $pdo->prepare("SELECT status, COUNT(*) as count FROM read_books WHERE user_id = ? GROUP BY status");
@@ -63,9 +91,9 @@ $stmt->execute([$user_id]);
 $stats = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
 $reading_stats = [
-    'want_to_read' => 0,
-    'currently_reading' => 0,
-    'read' => 0
+    'Want to Read' => 0,
+    'Currently Reading' => 0,
+    'Read' => 0
 ];
 
 foreach ($stats as $stat) {
@@ -200,8 +228,8 @@ $recent_books = $stmt->fetchAll(PDO::FETCH_ASSOC);
             transform: translateY(-2px);
         }
 
-        .upload-message {
-            color: <?php echo strpos($upload_message, 'Error') === false ? 'var(--accent)' : '#ef4444'; ?>;
+        .upload-message, .password-message {
+            color: <?php echo (strpos($upload_message, 'Error') === false && strpos($password_message, 'Error') === false) ? 'var(--accent)' : '#ef4444'; ?>;
             font-size: 0.875rem;
             margin-top: 8px;
         }
@@ -234,6 +262,20 @@ $recent_books = $stmt->fetchAll(PDO::FETCH_ASSOC);
             border-radius: 8px;
             margin-top: 8px;
             display: none;
+        }
+
+        .password-input {
+            border-radius: 8px;
+            border: 1px solid #d1d5db;
+            padding: 8px;
+            width: 100%;
+            background-color: rgba(255, 255, 255, 0.9);
+        }
+
+        .password-input:focus {
+            outline: none;
+            border-color: var(--primary);
+            box-shadow: 0 0 0 2px rgba(255, 131, 131, 0.2);
         }
     </style>
 </head>
@@ -274,7 +316,41 @@ $recent_books = $stmt->fetchAll(PDO::FETCH_ASSOC);
                         <h2 class="text-2xl font-bold text-[var(--dark)] mt-4 mb-2"><?php echo htmlspecialchars($user['username']); ?></h2>
                         <p class="text-gray-600 mb-4"><?php echo htmlspecialchars($user['email']); ?></p>
                         <p class="text-sm text-gray-500 mb-6">Joined: <?php echo date('F Y', strtotime($user['created_at'])); ?></p>
-                        <div class="flex flex-col gap-3">
+                        <!-- Password Change Form -->
+                        <form method="POST" id="password-form" class="mt-4">
+                            <h3 class="text-lg font-semibold text-[var(--dark)] mb-2">Change Password</h3>
+                            <input
+                                type="password"
+                                name="current_password"
+                                placeholder="Current Password"
+                                class="password-input mb-3"
+                                required
+                            />
+                            <input
+                                type="password"
+                                name="new_password"
+                                placeholder="New Password"
+                                class="password-input mb-3"
+                                required
+                            />
+                            <input
+                                type="password"
+                                name="confirm_password"
+                                placeholder="Confirm New Password"
+                                class="password-input mb-3"
+                                required
+                            />
+                            <button
+                                type="submit"
+                                class="btn-primary w-full py-2"
+                            >
+                                Update Password
+                            </button>
+                            <?php if ($password_message): ?>
+                                <p class="password-message animate-fade-in-up animate-delay-400"><?php echo htmlspecialchars($password_message); ?></p>
+                            <?php endif; ?>
+                        </form>
+                        <div class="flex flex-col gap-3 mt-6">
                             <a href="read_books.php" class="btn-primary py-3">View My Collection</a>
                             <a href="logout.php" class="btn-secondary py-3">Logout</a>
                         </div>
@@ -291,23 +367,23 @@ $recent_books = $stmt->fetchAll(PDO::FETCH_ASSOC);
                         <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
                             <div class="stat-card p-4">
                                 <h3 class="text-gray-600 font-medium">Want to Read</h3>
-                                <p class="text-2xl font-bold text-[var(--primary)]"><?php echo $reading_stats['want_to_read']; ?></p>
+                                <p class="text-2xl font-bold text-[var(--primary)]"><?php echo $reading_stats['Want to Read']; ?></p>
                                 <div class="mt-2 h-1 bg-gray-200 rounded-full">
-                                    <div class="bg-[var(--primary)] h-full rounded-full" style="width: <?php echo ($reading_stats['want_to_read'] / max(array_sum($reading_stats), 1)) * 100; ?>%"></div>
+                                    <div class="bg-[var(--primary)] h-full rounded-full" style="width: <?php echo ($reading_stats['Want to Read'] / max(array_sum($reading_stats), 1)) * 100; ?>%"></div>
                                 </div>
                             </div>
                             <div class="stat-card p-4">
                                 <h3 class="text-gray-600 font-medium">Currently Reading</h3>
-                                <p class="text-2xl font-bold text-[var(--light)]"><?php echo $reading_stats['currently_reading']; ?></p>
+                                <p class="text-2xl font-bold text-[var(--light)]"><?php echo $reading_stats['Currently Reading']; ?></p>
                                 <div class="mt-2 h-1 bg-gray-200 rounded-full">
-                                    <div class="bg-[var(--light)] h-full rounded-full" style="width: <?php echo ($reading_stats['currently_reading'] / max(array_sum($reading_stats), 1)) * 100; ?>%"></div>
+                                    <div class="bg-[var(--light)] h-full rounded-full" style="width: <?php echo ($reading_stats['Currently Reading'] / max(array_sum($reading_stats), 1)) * 100; ?>%"></div>
                                 </div>
                             </div>
                             <div class="stat-card p-4">
                                 <h3 class="text-gray-600 font-medium">Completed</h3>
-                                <p class="text-2xl font-bold text-[var(--accent)]"><?php echo $reading_stats['read']; ?></p>
+                                <p class="text-2xl font-bold text-[var(--accent)]"><?php echo $reading_stats['Read']; ?></p>
                                 <div class="mt-2 h-1 bg-gray-200 rounded-full">
-                                    <div class="bg-[var(--accent)] h-full rounded-full" style="width: <?php echo ($reading_stats['read'] / max(array_sum($reading_stats), 1)) * 100; ?>%"></div>
+                                    <div class="bg-[var(--accent)] h-full rounded-full" style="width: <?php echo ($reading_stats['Read'] / max(array_sum($reading_stats), 1)) * 100; ?>%"></div>
                                 </div>
                             </div>
                         </div>
@@ -360,12 +436,7 @@ $recent_books = $stmt->fetchAll(PDO::FETCH_ASSOC);
                                             <div>
                                                 <h3 class="text-sm font-medium text-[var(--dark)] line-clamp-2"><?php echo htmlspecialchars($title); ?></h3>
                                                 <p class="text-xs text-gray-600 mt-1"><?php echo htmlspecialchars($author); ?></p>
-                                                <p class="text-xs text-gray-500 mt-1">
-                                                    <?php
-                                                    $status_text = str_replace('_', ' ', $book['status']);
-                                                    echo ucwords($status_text);
-                                                    ?>
-                                                </p>
+                                                <p class="text-xs text-gray-500 mt-1"><?php echo ucwords(strtolower($book['status'])); ?></p>
                                             </div>
                                         </div>
                                     </a>
@@ -404,7 +475,7 @@ $recent_books = $stmt->fetchAll(PDO::FETCH_ASSOC);
             ];
             
             for (let i = 0; i < particleCount; i++) {
-                const geometry = new THREE.SphereGeometry(0.1, 8, 8); // Reduced particle size
+                const geometry = new THREE.SphereGeometry(0.1, 8, 8);
                 const material = new THREE.MeshBasicMaterial({ 
                     color: colors[Math.floor(Math.random() * colors.length)],
                     transparent: true,
@@ -420,10 +491,10 @@ $recent_books = $stmt->fetchAll(PDO::FETCH_ASSOC);
                 
                 // Custom properties for animation
                 particle.userData = {
-                    speed: 0.005 + Math.random() * 0.01, // Reduced rotation speed
+                    speed: 0.005 + Math.random() * 0.01,
                     rotationSpeed: 0.005 + Math.random() * 0.01,
                     direction: new THREE.Vector3(
-                        (Math.random() - 0.5) * 0.05, // Reduced movement speed
+                        (Math.random() - 0.5) * 0.05,
                         (Math.random() - 0.5) * 0.05,
                         (Math.random() - 0.5) * 0.05
                     )
@@ -440,7 +511,7 @@ $recent_books = $stmt->fetchAll(PDO::FETCH_ASSOC);
                 requestAnimationFrame(animate);
                 
                 // Rotate the entire particle system
-                particles.rotation.y += 0.001; // Reduced rotation speed
+                particles.rotation.y += 0.001;
                 particles.rotation.x += 0.0005;
                 
                 // Animate each particle
