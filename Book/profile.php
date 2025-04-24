@@ -1,4 +1,3 @@
-
 <?php
 session_start();
 require_once 'php/db_connect.php';
@@ -11,7 +10,7 @@ if (!isset($_SESSION['user_id'])) {
 
 $user_id = $_SESSION['user_id'];
 $upload_message = '';
-$password_message = '';
+$password_message = ''; 
 
 // Handle profile picture upload
 if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_FILES['profile_picture'])) {
@@ -36,7 +35,6 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_FILES['profile_picture'])) {
         $target_file = $upload_dir . $new_file_name;
 
         if (move_uploaded_file($file['tmp_name'], $target_file)) {
-            // Update profile picture path in database
             $stmt = $pdo->prepare("UPDATE users SET profile_picture = ? WHERE id = ?");
             $stmt->execute([$new_file_name, $user_id]);
             $upload_message = "Profile picture uploaded successfully!";
@@ -46,33 +44,44 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_FILES['profile_picture'])) {
     }
 }
 
-// Handle password change
-if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['current_password'], $_POST['new_password'], $_POST['confirm_password'])) {
+
+if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['update_password'])) {
     $current_password = $_POST['current_password'];
     $new_password = $_POST['new_password'];
-    $confirm_password = $_POST['confirm_password'];
+    $confirm_new_password = $_POST['confirm_new_password'];
 
-    // Fetch current password
-    $stmt = $pdo->prepare("SELECT password FROM users WHERE id = ?");
-    $stmt->execute([$user_id]);
-    $user = $stmt->fetch(PDO::FETCH_ASSOC);
-
-    if (!password_verify($current_password, $user['password'])) {
-        $password_message = "Error: Current password is incorrect.";
+    
+    if (empty($current_password) || empty($new_password) || empty($confirm_new_password)) {
+        $password_message = "Error: All password fields are required.";
+    }
+    elseif($new_password == $current_password){
+        $password_message = "Error: New and old passwords should not be same.";
+    } elseif ($new_password !== $confirm_new_password) {
+        $password_message = "Error: New passwords do not match.";
     } elseif (strlen($new_password) < 8) {
         $password_message = "Error: New password must be at least 8 characters long.";
-    } elseif ($new_password !== $confirm_password) {
-        $password_message = "Error: New passwords do not match.";
     } else {
-        // Update password
-        $hashed_password = password_hash($new_password, PASSWORD_BCRYPT);
-        $stmt = $pdo->prepare("UPDATE users SET password = ? WHERE id = ?");
-        $stmt->execute([$hashed_password, $user_id]);
-        $password_message = "Password changed successfully!";
+        
+        $stmt = $pdo->prepare("SELECT password FROM users WHERE id = ?");
+        $stmt->execute([$user_id]);
+        $user_data = $stmt->fetch(PDO::FETCH_ASSOC);
+
+        if ($user_data && password_verify($current_password, $user_data['password'])) {
+            
+            $hashed_new_password = password_hash($new_password, PASSWORD_DEFAULT);
+            $stmt = $pdo->prepare("UPDATE users SET password = ? WHERE id = ?");
+            if ($stmt->execute([$hashed_new_password, $user_id])) {
+                $password_message = "Password updated successfully!";
+            } else {
+                $password_message = "Error: Failed to update password. Please try again.";
+            }
+        } else {
+            $password_message = "Error: Current password is incorrect.";
+        }
     }
 }
 
-// Fetch user data
+
 $stmt = $pdo->prepare("SELECT username, email, created_at, profile_picture FROM users WHERE id = ?");
 $stmt->execute([$user_id]);
 $user = $stmt->fetch(PDO::FETCH_ASSOC);
@@ -82,7 +91,6 @@ if (!$user) {
     exit;
 }
 
-// Set profile picture path
 $profile_picture = $user['profile_picture'] ? "Uploads/profile_pictures/" . $user['profile_picture'] : "https://via.placeholder.com/150";
 
 // Fetch reading stats
@@ -91,16 +99,16 @@ $stmt->execute([$user_id]);
 $stats = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
 $reading_stats = [
-    'Want to Read' => 0,
-    'Currently Reading' => 0,
-    'Read' => 0
+    'want_to_read' => 0,
+    'currently_reading' => 0,
+    'read' => 0
 ];
 
 foreach ($stats as $stat) {
     $reading_stats[$stat['status']] = $stat['count'];
 }
 
-// Fetch recently added books (limit to 5)
+
 $stmt = $pdo->prepare("SELECT book_olid, status, added_at FROM read_books WHERE user_id = ? ORDER BY added_at DESC LIMIT 5");
 $stmt->execute([$user_id]);
 $recent_books = $stmt->fetchAll(PDO::FETCH_ASSOC);
@@ -229,7 +237,7 @@ $recent_books = $stmt->fetchAll(PDO::FETCH_ASSOC);
         }
 
         .upload-message, .password-message {
-            color: <?php echo (strpos($upload_message, 'Error') === false && strpos($password_message, 'Error') === false) ? 'var(--accent)' : '#ef4444'; ?>;
+            color: <?php echo strpos($upload_message, 'Error') === false && strpos($password_message, 'Error') === false ? 'var(--accent)' : '#ef4444'; ?>;
             font-size: 0.875rem;
             margin-top: 8px;
         }
@@ -264,18 +272,19 @@ $recent_books = $stmt->fetchAll(PDO::FETCH_ASSOC);
             display: none;
         }
 
-        .password-input {
-            border-radius: 8px;
-            border: 1px solid #d1d5db;
-            padding: 8px;
-            width: 100%;
-            background-color: rgba(255, 255, 255, 0.9);
+        .form-input {
+            border-radius: 12px;
+            background: rgba(255, 255, 255, 0.8);
+            border: 1px solid rgba(161, 154, 211, 0.3);
+            transition: all 0.3s ease;
+            color: var(--dark);
+            font-size: 0.95rem;
         }
 
-        .password-input:focus {
-            outline: none;
+        .form-input:focus {
             border-color: var(--primary);
-            box-shadow: 0 0 0 2px rgba(255, 131, 131, 0.2);
+            box-shadow: 0 0 0 3px rgba(255, 131, 131, 0.2);
+            outline: none;
         }
     </style>
 </head>
@@ -316,42 +325,8 @@ $recent_books = $stmt->fetchAll(PDO::FETCH_ASSOC);
                         <h2 class="text-2xl font-bold text-[var(--dark)] mt-4 mb-2"><?php echo htmlspecialchars($user['username']); ?></h2>
                         <p class="text-gray-600 mb-4"><?php echo htmlspecialchars($user['email']); ?></p>
                         <p class="text-sm text-gray-500 mb-6">Joined: <?php echo date('F Y', strtotime($user['created_at'])); ?></p>
-                        <!-- Password Change Form -->
-                        <form method="POST" id="password-form" class="mt-4">
-                            <h3 class="text-lg font-semibold text-[var(--dark)] mb-2">Change Password</h3>
-                            <input
-                                type="password"
-                                name="current_password"
-                                placeholder="Current Password"
-                                class="password-input mb-3"
-                                required
-                            />
-                            <input
-                                type="password"
-                                name="new_password"
-                                placeholder="New Password"
-                                class="password-input mb-3"
-                                required
-                            />
-                            <input
-                                type="password"
-                                name="confirm_password"
-                                placeholder="Confirm New Password"
-                                class="password-input mb-3"
-                                required
-                            />
-                            <button
-                                type="submit"
-                                class="btn-primary w-full py-2"
-                            >
-                                Update Password
-                            </button>
-                            <?php if ($password_message): ?>
-                                <p class="password-message animate-fade-in-up animate-delay-400"><?php echo htmlspecialchars($password_message); ?></p>
-                            <?php endif; ?>
-                        </form>
-                        <div class="flex flex-col gap-3 mt-6">
-                            <a href="read_books.php" class="btn-primary py-3">View My Collection</a>
+                        <div class="flex flex-col gap-3">
+                            <a href="read_books.php" class="btn-primary(py-3">View My Collection</a>
                             <a href="logout.php" class="btn-secondary py-3">Logout</a>
                         </div>
                     </div>
@@ -361,29 +336,70 @@ $recent_books = $stmt->fetchAll(PDO::FETCH_ASSOC);
                 <div class="md:w-2/3">
                     <h1 class="text-3xl font-bold text-[var(--dark)] mb-6 animate-fade-in-up animate-delay-300">My Reading Journey</h1>
 
+                    <!-- Password Update Form -->
+                    <div class="mb-8 animate-fade-in-up animate-delay-400">
+                        <h2 class="text-xl font-semibold text-[var(--dark)] mb-4">Update Password</h2>
+                        <form method="POST" id="password-update-form" class="space-y-4">
+                            <div>
+                                <label for="current_password" class="block text-sm font-medium text-[var(--dark)] mb-2">Current Password</label>
+                                <div class="relative">
+                                    <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                                        <i class="fas fa-lock text-gray-400 text-sm"></i>
+                                    </div>
+                                    <input type="password" name="current_password" id="current_password" class="form-input pl-10 py-2 w-full text-sm" placeholder="Enter current password" required>
+                                </div>
+                            </div>
+                            <div>
+                                <label for="new_password" class="block text-sm font-medium text-[var(--dark)] mb-2">New Password</label>
+                                <div class="relative">
+                                    <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                                        <i class="fas fa-lock text-gray-400 text-sm"></i>
+                                    </div>
+                                    <input type="password" name="new_password" id="new_password" class="form-input pl-10 py-2 w-full text-sm" placeholder="Enter new password" required>
+                                </div>
+                                <p class="text-xs text-gray-500 mt-1">Must be at least 8 characters long</p>
+                            </div>
+                            <div>
+                                <label for="confirm_new_password" class="block text-sm font-medium text-[var(--dark)] mb-2">Confirm New Password</label>
+                                <div class="relative">
+                                    <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                                        <i class="fas fa-lock text-gray-400 text-sm"></i>
+                                    </div>
+                                    <input type="password" name="confirm_new_password" id="confirm_new_password" class="form-input pl-10 py-2 w-full text-sm" placeholder="Confirm new password" required>
+                                </div>
+                            </div>
+                            <button type="submit" name="update_password" class="btn-primary w-full py-2 text-sm">
+                                <i class="fas fa-key mr-2"></i>Update Password
+                            </button>
+                        </form>
+                        <?php if ($password_message): ?>
+                            <p class="password-message animate-fade-in-up animate-delay-400"><?php echo htmlspecialchars($password_message); ?></p>
+                        <?php endif; ?>
+                    </div>
+
                     <!-- Reading Stats -->
                     <div class="mb-8 animate-fade-in-up animate-delay-400">
                         <h2 class="text-xl font-semibold text-[var(--dark)] mb-4">Reading Stats</h2>
                         <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
                             <div class="stat-card p-4">
                                 <h3 class="text-gray-600 font-medium">Want to Read</h3>
-                                <p class="text-2xl font-bold text-[var(--primary)]"><?php echo $reading_stats['Want to Read']; ?></p>
+                                <p class="text-2xl font-bold text-[var(--primary)]"><?php echo $reading_stats['want_to_read']; ?></p>
                                 <div class="mt-2 h-1 bg-gray-200 rounded-full">
-                                    <div class="bg-[var(--primary)] h-full rounded-full" style="width: <?php echo ($reading_stats['Want to Read'] / max(array_sum($reading_stats), 1)) * 100; ?>%"></div>
+                                    <div class="bg-[var(--primary)] h-full rounded-full" style="width: <?php echo ($reading_stats['want_to_read'] / max(array_sum($reading_stats), 1)) * 100; ?>%"></div>
                                 </div>
                             </div>
                             <div class="stat-card p-4">
                                 <h3 class="text-gray-600 font-medium">Currently Reading</h3>
-                                <p class="text-2xl font-bold text-[var(--light)]"><?php echo $reading_stats['Currently Reading']; ?></p>
+                                <p class="text-2xl font-bold text-[var(--light)]"><?php echo $reading_stats['currently_reading']; ?></p>
                                 <div class="mt-2 h-1 bg-gray-200 rounded-full">
-                                    <div class="bg-[var(--light)] h-full rounded-full" style="width: <?php echo ($reading_stats['Currently Reading'] / max(array_sum($reading_stats), 1)) * 100; ?>%"></div>
+                                    <div class="bg-[var(--light)] h-full rounded-full" style="width: <?php echo ($reading_stats['currently_reading'] / max(array_sum($reading_stats), 1)) * 100; ?>%"></div>
                                 </div>
                             </div>
                             <div class="stat-card p-4">
                                 <h3 class="text-gray-600 font-medium">Completed</h3>
-                                <p class="text-2xl font-bold text-[var(--accent)]"><?php echo $reading_stats['Read']; ?></p>
+                                <p class="text-2xl font-bold text-[var(--accent)]"><?php echo $reading_stats['read']; ?></p>
                                 <div class="mt-2 h-1 bg-gray-200 rounded-full">
-                                    <div class="bg-[var(--accent)] h-full rounded-full" style="width: <?php echo ($reading_stats['Read'] / max(array_sum($reading_stats), 1)) * 100; ?>%"></div>
+                                    <div class="bg-[var(--accent)] h-full rounded-full" style="width: <?php echo ($reading_stats['read'] / max(array_sum($reading_stats), 1)) * 100; ?>%"></div>
                                 </div>
                             </div>
                         </div>
@@ -413,7 +429,7 @@ $recent_books = $stmt->fetchAll(PDO::FETCH_ASSOC);
                                     $response = curl_exec($ch);
                                     $book_data = $response ? json_decode($response, true) : null;
 
-                                    $cover_url = isset($book_data['covers'][0]) ? "https://covers.openlibrary.org/b/id/{$book_data['covers'][0]}-M.jpg" : "https://via.placeholder.com/150x220";
+                                    $cover_url = isset($book_data['covers'][0]) ? "https://covers.openlibrary.org/b/id/{$book_data['covers'][0]}-M.jpg" : "https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcS1yg_rIUE_FzrkgJGIrpCu_e45OFLXH5GByg&s";
                                     $title = $book_data['title'] ?? "Unknown Title";
 
                                     $author_names = [];
@@ -436,7 +452,12 @@ $recent_books = $stmt->fetchAll(PDO::FETCH_ASSOC);
                                             <div>
                                                 <h3 class="text-sm font-medium text-[var(--dark)] line-clamp-2"><?php echo htmlspecialchars($title); ?></h3>
                                                 <p class="text-xs text-gray-600 mt-1"><?php echo htmlspecialchars($author); ?></p>
-                                                <p class="text-xs text-gray-500 mt-1"><?php echo ucwords(strtolower($book['status'])); ?></p>
+                                                <p class="text-xs text-gray-500 mt-1">
+                                                    <?php
+                                                    $status_text = str_replace('_', ' ', $book['status']);
+                                                    echo ucwords($status_text);
+                                                    ?>
+                                                </p>
                                             </div>
                                         </div>
                                     </a>
@@ -451,7 +472,7 @@ $recent_books = $stmt->fetchAll(PDO::FETCH_ASSOC);
     </div>
 
     <script>
-        // Interactive background animation with Three.js
+        
         document.addEventListener('DOMContentLoaded', function() {
             // Set up scene
             const scene = new THREE.Scene();
@@ -484,12 +505,10 @@ $recent_books = $stmt->fetchAll(PDO::FETCH_ASSOC);
                 
                 const particle = new THREE.Mesh(geometry, material);
                 
-                // Random position
                 particle.position.x = (Math.random() - 0.5) * 20;
                 particle.position.y = (Math.random() - 0.5) * 20;
                 particle.position.z = (Math.random() - 0.5) * 20;
                 
-                // Custom properties for animation
                 particle.userData = {
                     speed: 0.005 + Math.random() * 0.01,
                     rotationSpeed: 0.005 + Math.random() * 0.01,
@@ -503,26 +522,20 @@ $recent_books = $stmt->fetchAll(PDO::FETCH_ASSOC);
                 particles.add(particle);
             }
             
-            // Position camera
             camera.position.z = 15;
             
-            // Animation loop
             function animate() {
                 requestAnimationFrame(animate);
                 
-                // Rotate the entire particle system
                 particles.rotation.y += 0.001;
                 particles.rotation.x += 0.0005;
                 
-                // Animate each particle
                 particles.children.forEach(particle => {
                     particle.rotation.x += particle.userData.rotationSpeed;
                     particle.rotation.y += particle.userData.rotationSpeed;
                     
-                    // Move particle
                     particle.position.add(particle.userData.direction);
                     
-                    // Boundary check - wrap around if out of bounds
                     if (Math.abs(particle.position.x) > 10) particle.userData.direction.x *= -1;
                     if (Math.abs(particle.position.y) > 10) particle.userData.direction.y *= -1;
                     if (Math.abs(particle.position.z) > 10) particle.userData.direction.z *= -1;
@@ -533,14 +546,12 @@ $recent_books = $stmt->fetchAll(PDO::FETCH_ASSOC);
             
             animate();
             
-            // Handle window resize
             window.addEventListener('resize', function() {
                 camera.aspect = window.innerWidth / window.innerHeight;
                 camera.updateProjectionMatrix();
                 renderer.setSize(window.innerWidth, window.innerHeight);
             });
             
-            // Interactive effect - move particles slightly based on mouse position
             document.addEventListener('mousemove', function(event) {
                 const mouseX = (event.clientX / window.innerWidth) * 2 - 1;
                 const mouseY = -(event.clientY / window.innerHeight) * 2 + 1;
@@ -552,7 +563,7 @@ $recent_books = $stmt->fetchAll(PDO::FETCH_ASSOC);
             // Profile picture preview
             const profilePictureInput = document.getElementById('profile_picture');
             const profilePicturePreview = document.getElementById('profile-picture-preview');
-            const form = document.getElementById('profile-picture-form');
+            const profilePictureForm = document.getElementById('profile-picture-form');
             
             profilePictureInput.addEventListener('change', function() {
                 const file = this.files[0];
@@ -580,11 +591,37 @@ $recent_books = $stmt->fetchAll(PDO::FETCH_ASSOC);
                     reader.onload = function(e) {
                         profilePicturePreview.src = e.target.result;
                         profilePicturePreview.style.display = 'block';
-                        setTimeout(() => form.submit(), 500); // Delay submit to show preview
+                        setTimeout(() => profilePictureForm.submit(), 500);
                     };
                     reader.readAsDataURL(file);
                 } else {
                     profilePicturePreview.style.display = 'none';
+                }
+            });
+
+            // Password update form validation
+            const passwordForm = document.getElementById('password-update-form');
+            passwordForm.addEventListener('submit', function(e) {
+                const currentPassword = document.getElementById('current_password').value;
+                const newPassword = document.getElementById('new_password').value;
+                const confirmNewPassword = document.getElementById('confirm_new_password').value;
+
+                if (!currentPassword || !newPassword || !confirmNewPassword) {
+                    e.preventDefault();
+                    alert('All password fields are required.');
+                    return false;
+                }
+
+                if (newPassword.length < 8) {
+                    e.preventDefault();
+                    alert('New password must be at least 8 characters long.');
+                    return false;
+                }
+
+                if (newPassword !== confirmNewPassword) {
+                    e.preventDefault();
+                    alert('New passwords do not match.');
+                    return false;
                 }
             });
         });
