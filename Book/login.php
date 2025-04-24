@@ -201,12 +201,14 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                     </h2>
 
                     <!-- PHP error message -->
-                    <div class="bg-red-100 border-l-4 border-red-500 text-red-700 p-3 sm:p-4 mb-4 sm:mb-6 rounded-md animate-fade-in-up animate-delay-100 hidden">
-                        <div class="flex">
-                            <i class="fas fa-exclamation-circle mt-1 mr-2"></i>
-                            <p>Error message placeholder</p>
+                    <?php if (!empty($error)): ?>
+                        <div class="bg-red-100 border-l-4 border-red-500 text-red-700 p-3 sm:p-4 mb-4 sm:mb-6 rounded-md animate-fade-in-up animate-delay-100">
+                            <div class="flex">
+                                <i class="fas fa-exclamation-circle mt-1 mr-2"></i>
+                                <p><?php echo htmlspecialchars($error); ?></p>
+                            </div>
                         </div>
-                    </div>
+                    <?php endif; ?>
 
                     <form method="POST" action="" class="space-y-4 sm:space-y-5">
                         <div class="animate-fade-in-up animate-delay-300">
@@ -245,9 +247,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
 
                         <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 animate-fade-in-up animate-delay-500">
                             <div class="flex items-center">
-                                
                             </div>
-                           
                         </div>
 
                         <button type="submit" class="btn-primary w-full py-2 sm:py-3 animate-fade-in-up animate-delay-500">
@@ -264,7 +264,9 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                         </p>
 
                         <div class="mt-4 sm:mt-6">
-                           
+                            <a href="index.php" class="text-xs sm:text-sm text-[var(--dark)] hover:text-[var(--primary)] flex items-center">
+                                <i class="fas fa-home mr-2"></i> Continue as guest
+                            </a>
                         </div>
                     </div>
                 </div>
