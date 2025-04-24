@@ -25,7 +25,7 @@ unset($_SESSION['status_message']);
 
 // Fetch user data
 $user = getUserData($pdo, $user_id);
-$base_url = "http://localhost/book_explorer/"; // Match index.php and profile.php
+$base_url = "http://localhost/book_explorer/";
 $profile_picture = "https://via.placeholder.com/40";
 if (!empty($user['profile_picture'])) {
     $file_path = "Uploads/profile_pictures/" . $user['profile_picture'];
@@ -83,7 +83,7 @@ function getUserData($pdo, $user_id) {
  */
 function handleReviewSubmission($pdo, $user_id, $olid) {
     $review = trim($_POST['review']);
-    $rating = filter_input(INPUT_POST, 'star-radio', FILTER_VALIDATE_INT);
+    $rating = filter_input(INPUT_POST, 'rating', FILTER_VALIDATE_INT);
     
     if (empty($review)) {
         return ['error' => 'Please enter a review'];
@@ -151,18 +151,16 @@ function fetchBookData($olid) {
         ];
     }
     
-    // Process book data
     $title = $book_data['title'] ?? "Unknown Title";
     $cover_url = isset($book_data['covers'][0]) ? 
         "https://covers.openlibrary.org/b/id/{$book_data['covers'][0]}-L.jpg" : 
-        "https://via.placeholder.com/300x450";
+        "https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcS1yg_rIUE_FzrkgJGIrpCu_e45OFLXH5GByg&s";
         
     $description = $book_data['description'] ?? "No description available.";
     if (is_array($description)) $description = $description['value'];
     
     $first_publish_date = $book_data['first_publish_date'] ?? "Unknown";
     
-    // Process authors
     $author_names = [];
     if (isset($book_data['authors']) && is_array($book_data['authors'])) {
         foreach ($book_data['authors'] as $author) {
@@ -177,7 +175,6 @@ function fetchBookData($olid) {
     }
     $author = !empty($author_names) ? implode(", ", $author_names) : "Unknown Author";
     
-    // Process subjects
     $subjects = array_slice($book_data['subjects'] ?? [], 0, 5);
     
     return [
@@ -242,6 +239,8 @@ $subjects = $book_data['subjects'];
     <title><?php echo htmlspecialchars($title); ?> | Novella</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/js/all.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/particles.js@2.0.0/particles.min.js"></script>
     <style>
         :root {
             --primary: #FF8383;
@@ -253,21 +252,34 @@ $subjects = $book_data['subjects'];
 
         body {
             font-family: 'Poppins', sans-serif;
-            background: linear-gradient(135deg, #ffeffd, #f0f4ff);
+            background: linear-gradient(135deg, #E6BEE6, #DCE4FF);
             color: var(--dark);
-            padding: 0;
-            margin: 0;
-            box-sizing: border-box;
+            overflow-x: hidden;
         }
-        
+
+        #particles-js {
+            position: fixed;
+            width: 100%;
+            height: 100%;
+            top: 0;
+            left: 0;
+            z-index: -1;
+            filter: blur(1px);
+            opacity: 1.0;
+        }
+
         .glass-card {
-            backdrop-filter: blur(16px);
-            background: rgba(255, 255, 255, 0.7);
+            backdrop-filter: blur(10px);
+            background: rgba(255, 255, 255, 0.3);
             border-radius: 16px;
             box-shadow: 0 4px 30px rgba(0, 0, 0, 0.1);
             border: 1px solid rgba(255, 255, 255, 0.3);
         }
-        
+
+        .rating-stars {
+            color: #FFD700;
+        }
+
         .status-btn {
             transition: all 0.3s ease;
             border-radius: 50px;
@@ -308,101 +320,53 @@ $subjects = $book_data['subjects'];
         }
 
         /* Star Rating Styles */
-        .wrapper {
-            max-width: 65ch;
-            margin: 0 auto;
-            padding: 0 2rem;
-        }
-
-        .call-to-action-text {
-            margin: 2rem 0;
-            text-align: left;
-        }
-
-        .star-wrap {
-            width: max-content;
-            margin: 0 0 0 0; /* Align left by removing auto margin */
-            position: relative;
-            display: flex;
-            align-items: center;
-            gap: 0.5rem; /* Space between stars */
-        }
-
-        .star-label.hidden {
-            display: none;
-        }
-
-        .star-label {
+        .star-rating {
             display: inline-flex;
-            justify-content: center;
             align-items: center;
-            width: 2rem; /* Reduced from 4rem */
-            height: 2rem; /* Reduced from 4rem */
-        }
-
-        @media (min-width: 840px) {
-            .star-label {
-                width: 3rem; /* Reduced from 6rem */
-                height: 3rem; /* Reduced from 6rem */
-            }
-        }
-
-        .star-shape {
-            background-color: gold;
-            width: 80%;
-            height: 80%;
-            clip-path: polygon(
-                50% 0%,
-                61% 35%,
-                98% 35%,
-                68% 57%,
-                79% 91%,
-                50% 70%,
-                21% 91%,
-                32% 57%,
-                2% 35%,
-                39% 35%
-            );
-        }
-
-        .star:checked + .star-label ~ .star-label .star-shape {
-            background-color: lightgray;
         }
 
         .star {
-            position: fixed;
-            opacity: 0;
-            left: -90000px;
+            font-size: 2rem;
+            cursor: pointer;
+            transition: color 0.2s ease, transform 0.2s ease;
+            color: #d1d5db; /* Tailwind gray-300 */
         }
 
-        .star:focus + .star-label {
-            outline: 2px dotted black;
+        .star:hover,
+        .star.active {
+            transform: scale(1.1);
         }
 
-        .skip-button {
-            display: block;
-            width: 1.5rem; /* Reduced from 2rem */
-            height: 1.5rem; /* Reduced from 2rem */
-            border-radius: 0.75rem; /* Adjusted for smaller size */
-            position: absolute;
-            top: -1.5rem; /* Adjusted for smaller size */
-            right: -0.75rem; /* Adjusted for smaller size */
-            text-align: center;
-            line-height: 1.5rem; /* Adjusted for smaller size */
-            font-size: 1.5rem; /* Reduced from 2rem */
-            background-color: rgba(255, 255, 255, 0.1);
+        .star.one.active {
+            color: rgb(255, 0, 0); /* Red */
         }
 
-        .skip-button:hover {
-            background-color: rgba(255, 255, 255, 0.2);
+        .star.two.active {
+            color: rgb(255, 106, 0); /* Orange */
         }
 
-        #skip-star:checked ~ .skip-button {
-            display: none;
+        .star.three.active {
+            color: rgb(251, 255, 120); /* Light Yellow */
+        }
+
+        .star.four.active {
+            color: rgb(255, 255, 0); /* Yellow */
+        }
+
+        .star.five.active {
+            color: rgb(24, 159, 14); /* Green */
+        }
+
+        .rating-output {
+            font-size: 0.9rem;
+            color: var(--dark);
+            margin-left: 1rem;
         }
     </style>
 </head>
-<body class="min-h-screen bg-gradient-to-br from-[#ffeffd] to-[#f0f4ff] text-gray-900 p-6">
+<body class="min-h-screen text-gray-900 p-6">
+    <div id="particles-js"></div>
+
     <div class="max-w-6xl mx-auto">
         <!-- Back to Dashboard Button -->
         <div class="mt-4 mb-8">
@@ -491,7 +455,7 @@ $subjects = $book_data['subjects'];
                         </div>
                     </div>
                     
-                    <!-- Subjects -->
+                    
                     <?php if (!empty($subjects)): ?>
                     <div class="flex gap-2 flex-wrap">
                         <?php foreach ($subjects as $subject): ?>
@@ -505,10 +469,10 @@ $subjects = $book_data['subjects'];
             </div>
         </div>
 
-        <!-- Review Form Section -->
+    
         <div class="glass-card p-8 mb-8">
             <h2 class="text-2xl font-bold mb-6 text-[var(--dark)]">Leave a Review</h2>
-            <form method="POST" action="#" name="star-rating-form" class="space-y-4">
+            <form method="POST" class="space-y-4">
                 <div>
                     <label for="review" class="block text-gray-700 mb-2">Your thoughts</label>
                     <textarea 
@@ -520,47 +484,29 @@ $subjects = $book_data['subjects'];
                 </div>
                 
                 <div>
-                    <label for="rating" class="call-to-action-text">Select a rating:</label>
-                    <div class="star-wrap">
-                        <input class="star" checked type="radio" value="-1" id="skip-star" name="star-radio" autocomplete="off" />
-                        <label class="star-label hidden"></label>
-                        <input class="star" type="radio" id="st-1" value="1" name="star-radio" autocomplete="off" />
-                        <label class="star-label" for="st-1">
-                            <div class="star-shape"></div>
-                        </label>
-                        <input class="star" type="radio" id="st-2" value="2" name="star-radio" autocomplete="off" />
-                        <label class="star-label" for="st-2">
-                            <div class="star-shape"></div>
-                        </label>
-                        <input class="star" type="radio" id="st-3" value="3" name="star-radio" autocomplete="off" />
-                        <label class="star-label" for="st-3">
-                            <div class="star-shape"></div>
-                        </label>
-                        <input class="star" type="radio" id="st-4" value="4" name="star-radio" autocomplete="off" />
-                        <label class="star-label" for="st-4">
-                            <div class="star-shape"></div>
-                        </label>
-                        <input class="star" type="radio" id="st-5" value="5" name="star-radio" autocomplete="off" />
-                        <label class="star-label" for="st-5">
-                            <div class="star-shape"></div>
-                        </label>
-                        <label class="skip-button" for="skip-star">
-                            ×
-                        </label>
+                    <label for="rating" class="block text-gray-700 mb-2">Rating</label>
+                    <div class="flex gap-4 items-center">
+                        <div class="star-rating">
+                            <span onclick="setRating(1)" class="star">★</span>
+                            <span onclick="setRating(2)" class="star">★</span>
+                            <span onclick="setRating(3)" class="star">★</span>
+                            <span onclick="setRating(4)" class="star">★</span>
+                            <span onclick="setRating(5)" class="star">★</span>
+                            <input type="hidden" name="rating" id="rating" value="">
+                        </div>
+                        <span id="rating-output" class="rating-output">Select a rating</span>
+                        <button type="submit" 
+                                name="submit_review" 
+                                class="bg-[var(--primary)] hover:bg-[#ff6b6b] text-white px-6 py-3 rounded-lg transition-all duration-300 shadow-md hover:shadow-lg">
+                            <i class="fas fa-paper-plane mr-2"></i>
+                            Submit Review
+                        </button>
                     </div>
                 </div>
-                
-                <button type="submit" 
-                        name="submit_review" 
-                        class="bg-[var(--primary)] hover:bg-[#ff6b6b] text-white px-6 py-3 rounded-lg transition-all duration-300 shadow-md hover:shadow-lg">
-                    <i class="fas fa-paper-plane mr-2"></i>
-                    Submit Review
-                </button>
             </form>
-            <p id="result">Not chosen</p>
         </div>
 
-        <!-- Reviews Section -->
+    
         <div class="glass-card p-8">
             <h2 class="text-2xl font-bold mb-6 text-[var(--dark)]">User Reviews</h2>
             <?php if (!empty($reviews)): ?>
@@ -601,6 +547,92 @@ $subjects = $book_data['subjects'];
     </div>
 
     <script>
+
+        document.addEventListener('DOMContentLoaded', function() {
+            particlesJS('particles-js', {
+                "particles": {
+                    "number": {
+                        "value": 80,
+                        "density": {
+                            "enable": true,
+                            "value_area": 800
+                        }
+                    },
+                    "color": {
+                        "value": [
+                            "#F06262",
+                            "#4DB6AC",
+                            "#7B5EAB"
+                        ]
+                    },
+                    "opacity": {
+                        "value": 0.5,
+                        "random": true,
+                        "anim": {
+                            "enable": true,
+                            "speed": 1,
+                            "opacity_min": 0.3,
+                            "sync": false
+                        }
+                    },
+                    "size": {
+                        "value": 4,
+                        "random": true,
+                        "anim": {
+                            "enable": true,
+                            "speed": 1,
+                            "size_min": 0.1,
+                            "sync": false
+                        }
+                    },
+                    "line_linked": {
+                        "enable": true,
+                        "distance": 190,
+                        "color": "#4DB6AC",
+                        "opacity": 0.4,
+                        "width": 0.5
+                    },
+                    "move": {
+                        "enable": true,
+                        "speed": 0.7,
+                        "direction": "none",
+                        "random": true,
+                        "straight": false,
+                        "out_mode": "out",
+                        "bounce": false
+                    }
+                },
+                "interactivity": {
+                    "detect_on": "canvas",
+                    "events": {
+                        "onhover": {
+                            "enable": true,
+                            "mode": "bubble"
+                        },
+                        "onclick": {
+                            "enable": true,
+                            "mode": "push"
+                        },
+                        "resize": true
+                    },
+                    "modes": {
+                        "bubble": {
+                            "distance": 150,
+                            "size": 4,
+                            "duration": 2,
+                            "opacity": 0.8,
+                            "speed": 3
+                        },
+                        "push": {
+                            "particles_nb": 3
+                        }
+                    }
+                },
+                "retina_detect": true
+            });
+        });
+
+        
         function debugForm(form) {
             console.log('Submitting form:', {
                 action: form.action,
@@ -609,32 +641,31 @@ $subjects = $book_data['subjects'];
             });
         }
 
-        function displayValue() {
-            const starVal = document.forms["star-rating-form"]["star-radio"].value;
-            const result = document.getElementById("result");
-            if (starVal == -1) {
-                result.innerText = "Not Chosen";
-            } else {
-                result.innerText = "You chose: " + starVal + " out of 5.";
+    
+        const stars = document.getElementsByClassName("star");
+        const ratingInput = document.getElementById("rating");
+        const ratingOutput = document.getElementById("rating-output");
+
+        function setRating(n) {
+            // Remove existing styles
+            for (let i = 0; i < stars.length; i++) {
+                stars[i].className = "star";
             }
+            // Apply styles for selected rating
+            for (let i = 0; i < n; i++) {
+                let cls = "";
+                if (n == 1) cls = "one";
+                else if (n == 2) cls = "two";
+                else if (n == 3) cls = "three";
+                else if (n == 4) cls = "four";
+                else if (n == 5) cls = "five";
+                stars[i].className = `star ${cls} active`;
+            }
+            // Update hidden input
+            ratingInput.value = n;
+            // Update output text
+            ratingOutput.textContent = `Rating: ${n}/5`;
         }
-
-        document.addEventListener("DOMContentLoaded", () => {
-            displayValue();
-            const starInputs = document.forms["star-rating-form"]["star-radio"];
-            for (let star of starInputs) {
-                star.addEventListener("change", () => {
-                    displayValue();
-                });
-            }
-
-            // Preselect rating if form is re-submitted with errors
-            const currentRating = <?php echo isset($_POST['star-radio']) && $_POST['star-radio'] >= 1 && $_POST['star-radio'] <= 5 ? (int)$_POST['star-radio'] : -1; ?>;
-            if (currentRating >= 1 && currentRating <= 5) {
-                document.getElementById(`st-${currentRating}`).checked = true;
-                displayValue();
-            }
-        });
     </script>
 </body>
 </html>
