@@ -4,42 +4,48 @@ require_once 'php/db_connect.php';
 
 $base_url = "http://localhost/book_explorer/";
 
-// Default profile picture
-if (isset($_SESSION['user_id'])) {
-    $user_id = $_SESSION['user_id'];
-    error_log("User ID: " . $user_id);
-    try {
-        $stmt = $pdo->prepare("SELECT username, email, created_at, profile_picture FROM users WHERE id = ?");
-        $stmt->execute([$user_id]);
-        $user = $stmt->fetch(PDO::FETCH_ASSOC);
-        if ($user) {
-            error_log("User found: " . json_encode($user));
-            $profile_picture = "https://via.placeholder.com/40";
-            if (!empty($user['profile_picture'])) {
-                $file_path = "Uploads/profile_pictures/" . $user['profile_picture'];
-                error_log("Checking file: " . $file_path);
-                if (file_exists($file_path)) {
-                    $profile_picture = $base_url . $file_path . "?v=" . time();
-                    error_log("Profile picture set: " . $profile_picture);
-                } else {
-                    error_log("File does not exist: " . $file_path);
-                }
-            } else {
-                error_log("Profile picture empty for user ID: " . $user_id);
-            }
-        } else {
-            error_log("No user found for ID: " . $user_id);
-            header("Location: logout.php");
-            exit;
-        }
-    } catch (PDOException $e) {
-        error_log("Database error in index.php: " . $e->getMessage());
-        $user = ['username' => 'User', 'email' => '', 'created_at' => ''];
-        $profile_picture = "https://via.placeholder.com/40";
-    }
-} else {
+// Redirect if not logged in
+if (!isset($_SESSION['user_id'])) {
     header("Location: login.php");
     exit;
+}
+
+$user_id = $_SESSION['user_id'];
+
+// Fetch user data
+try {
+    $stmt = $pdo->prepare("SELECT username, email, created_at, profile_picture FROM users WHERE id = ?");
+    $stmt->execute([$user_id]);
+    $user = $stmt->fetch(PDO::FETCH_ASSOC);
+    if ($user) {
+        error_log("User found: " . json_encode($user));
+        
+        // Set profile picture path (use lowercase 'uploads' to match directory)
+        $profile_picture_path = $user['profile_picture'] 
+            ? "Uploads/profile_pictures/" . $user['profile_picture'] 
+            : "https://cdn-icons-png.flaticon.com/512/12225/12225935.png";
+
+        // Check if the file exists
+        $full_file_path = __DIR__ . "/Uploads/profile_pictures/" . $user['profile_picture'];
+        if ($user['profile_picture'] && !file_exists($full_file_path)) {
+            error_log("Profile picture file not found: $full_file_path");
+            $profile_picture_path = "https://cdn-icons-png.flaticon.com/512/12225/12225935.png"; // Fallback to default
+        }
+
+        // Add cache-busting parameter
+        $profile_picture = $profile_picture_path . "?v=" . time();
+
+        // Log the image URL for debugging
+        error_log("Profile picture URL: $profile_picture");
+    } else {
+        error_log("No user found for ID: $user_id");
+        header("Location: logout.php");
+        exit;
+    }
+} catch (PDOException $e) {
+    error_log("Database error in dashboard.php: " . $e->getMessage());
+    $user = ['username' => 'User', 'email' => '', 'created_at' => ''];
+    $profile_picture = "https://cdn-icons-png.flaticon.com/512/12225/12225935.png?v=" . time();
 }
 ?>
 <!DOCTYPE html>
@@ -62,33 +68,10 @@ if (isset($_SESSION['user_id'])) {
             --light-bg: #f0f4ff;
             --card-bg: rgba(255, 255, 255, 0.85);
         }
-        .scroll-container {
-            overflow-x: auto;
-            scroll-behavior: smooth; /* Smooth horizontal scrolling */
-            -webkit-overflow-scrolling: touch; /* Smooth scrolling on mobile */
-            scrollbar-width: thin; /* Firefox: thinner scrollbar */
-            overscroll-behavior-x: contain; /* Prevent scroll chaining */
-            position: relative; /* For scroll trigger */
-        }
-
-        /* Hide scrollbar for a cleaner look */
-        .scroll-container::-webkit-scrollbar {
-            height: 6px;
-        }
-
-        .scroll-container::-webkit-scrollbar-track {
-            background: rgba(161, 154, 211, 0.1);
-            border-radius: 10px;
-        }
-
-        .scroll-container::-webkit-scrollbar-thumb {
-            background: var(--primary);
-            border-radius: 10px;
-        }
 
         body {
             font-family: 'Poppins', sans-serif;
-            background: linear-gradient(135deg, #ffeffd, #f0f4ff);
+            background: linear-gradient(135deg, #E6BEE6, #DCE4FF);
             color: var(--dark);
             overflow-x: hidden;
         }
@@ -100,6 +83,8 @@ if (isset($_SESSION['user_id'])) {
             top: 0;
             left: 0;
             z-index: -1;
+            filter: blur(1px);
+            opacity: 1.0;
         }
 
         .hero-content {
@@ -107,21 +92,22 @@ if (isset($_SESSION['user_id'])) {
             z-index: 10;
             backdrop-filter: blur(5px);
             border-radius: 16px;
-            background-color: rgba(255, 255, 255, 0); /* Fully transparent background */
-            box-shadow: none; /* Remove shadow for more transparency */
-            border: 1px solid rgba(255, 255, 255, 0.1); /* More subtle border */
-            padding: 2rem;
+            background-color: rgba(255, 255, 255, 0.1);
+            box-shadow: 0 8px 32px rgba(161, 154, 211, 0.08);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            transition: background-color 0.3s ease;
         }
 
-        /* Enhance text legibility */
-        .hero-content h1, .hero-content p {
-            text-shadow: 0 2px 6px rgba(0, 0, 0, 0.2); /* Stronger shadow for better contrast */
-            color: var(--dark);
-            font-weight: bold;
+        .hero-content:hover {
+            background-color: rgba(255, 255, 255, 0.15);
         }
 
-        .hero-content .btn-primary, .hero-content .btn-secondary, .hero-content .btn-outline {
-            text-shadow: 0 1px 3px rgba(0, 0, 0, 0.15);
+        .hero-content h1 {
+            text-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+        }
+
+        .hero-content p {
+            text-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
         }
 
         .glass-card {
@@ -256,6 +242,17 @@ if (isset($_SESSION['user_id'])) {
             border-radius: 10px;
         }
 
+        .scroll-container {
+            opacity: 0;
+            transform: translateX(-20px);
+            transition: opacity 0.7s ease-out, transform 0.7s ease-out;
+        }
+
+        .scroll-container.visible {
+            opacity: 1;
+            transform: translateX(0);
+        }
+
         .genre-title {
             position: relative;
             display: inline-block;
@@ -281,31 +278,14 @@ if (isset($_SESSION['user_id'])) {
             font-size: 0.85rem;
             transition: all 0.3s ease;
             box-shadow: 0 4px 10px rgba(161, 154, 211, 0.25);
-            cursor: pointer;
-            position: relative;
-            overflow: hidden;
         }
-        
-        .category-pill::before {
-            content: '';
-            position: absolute;
-            top: 0;
-            left: -100%;
-            width: 100%;
-            height: 100%;
-            background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.2), transparent);
-            transition: all 0.8s ease;
-        }
-        
+
         .category-pill:hover {
             transform: translateY(-2px);
             box-shadow: 0 6px 15px rgba(161, 154, 211, 0.4);
+            cursor: pointer;
         }
-        
-        .category-pill:hover::before {
-            left: 100%;
-        }
-        
+
         .active-pill {
             background-color: var(--accent);
             transform: translateY(-2px);
@@ -355,26 +335,21 @@ if (isset($_SESSION['user_id'])) {
             box-shadow: 0 4px 10px rgba(161, 214, 203, 0.3);
         }
 
-        /* Mobile navigation menu */
         .mobile-menu {
             position: fixed;
+            left: -250px;
             top: 0;
-            right: -100%;
-            width: 80%;
-            max-width: 300px;
+            width: 250px;
             height: 100vh;
             background: rgba(255, 255, 255, 0.95);
             backdrop-filter: blur(10px);
+            transition: left 0.3s ease;
             z-index: 1000;
-            transition: right 0.3s ease;
-            box-shadow: -5px 0 25px rgba(0, 0, 0, 0.1);
-            padding: 2rem;
-            display: flex;
-            flex-direction: column;
+            box-shadow: 4px 0 15px rgba(0, 0, 0, 0.1);
         }
 
         .mobile-menu.active {
-            right: 0;
+            left: 0;
         }
 
         .menu-overlay {
@@ -384,10 +359,10 @@ if (isset($_SESSION['user_id'])) {
             width: 100%;
             height: 100%;
             background: rgba(0, 0, 0, 0.5);
-            z-index: 999;
             opacity: 0;
             visibility: hidden;
             transition: all 0.3s ease;
+            z-index: 999;
         }
 
         .menu-overlay.active {
@@ -395,184 +370,10 @@ if (isset($_SESSION['user_id'])) {
             visibility: visible;
         }
 
-        /* Animation effects */
-        @keyframes fadeIn {
-            from { opacity: 0; transform: translateY(20px); }
-            to { opacity: 1; transform: translateY(0); }
-        }
-
-        .fade-in {
-            animation: fadeIn 0.6s ease forwards;
-        }
-
-        .delay-1 { animation-delay: 0.1s; }
-        .delay-2 { animation-delay: 0.2s; }
-        .delay-3 { animation-delay: 0.3s; }
-
-        /* Dynamic book card hover */
-        .book-card::after {
-            content: "";
-            position: absolute;
-            bottom: 0;
-            left: 0;
-            width: 100%;
-            height: 0;
-            background: linear-gradient(to top, var(--primary), transparent);
-            opacity: 0;
-            transition: all 0.4s ease;
-            z-index: -1;
-            border-radius: 16px;
-        }
-
-        .book-card:hover::after {
-            opacity: 0.15;
-            height: 100%;
-        }
-
-        .hide-scrollbar::-webkit-scrollbar {
-            display: none;
-        }
-        
-        .hide-scrollbar {
-            -ms-overflow-style: none;
-            scrollbar-width: none;
-        }
-
-        /* 滚动汉堡菜单样式 */
-        #scrollHamburger {
-            transition: all 0.3s ease;
-        }
-        
-        #scrollMenuBtn {
-            position: relative;
-            z-index: 52;
-            transition: all 0.3s ease;
-        }
-        
-        #scrollMenuBtn:hover {
-            transform: scale(1.1);
-            background-color: var(--light-bg);
-        }
-        
-        #scrollMenu {
-            border-radius: 12px;
-            transform-origin: top right;
-            transform: scale(0.95);
-            opacity: 0;
-            pointer-events: none;
-            transition: all 0.2s ease-out;
-            z-index: 51;
-            overflow: hidden;
-            box-shadow: 0 10px 25px rgba(0, 0, 0, 0.1);
-            border: 1px solid rgba(255, 255, 255, 0.3);
-        }
-        
-        #scrollMenu.active {
-            transform: scale(1);
-            opacity: 1;
-            pointer-events: auto;
-        }
-        
-        #scrollMenu a {
-            transition: all 0.2s ease;
-            position: relative;
-            overflow: hidden;
-            opacity: 0;
-            transform: translateY(10px);
-        }
-        
-        #scrollMenu.active a {
-            opacity: 1;
-            transform: translateY(0);
-        }
-        
-        /* 添加级联动画效果 */
-        #scrollMenu.active a:nth-child(2) {
-            transition-delay: 0.05s;
-        }
-        
-        #scrollMenu.active a:nth-child(3) {
-            transition-delay: 0.1s;
-        }
-        
-        #scrollMenu.active a:nth-child(5) {
-            transition-delay: 0.15s;
-        }
-        
-        #scrollMenu a:hover {
-            background-color: var(--light-bg);
-            padding-left: 1.5rem;
-        }
-        
-        #scrollMenu a::after {
-            content: '';
-            position: absolute;
-            bottom: 0;
-            left: 0;
-            width: 0;
-            height: 1px;
-            background-color: var(--primary);
-            transition: width 0.3s ease;
-        }
-        
-        #scrollMenu a:hover::after {
-            width: 100%;
-        }
-        
-        /* 汉堡菜单图标动画 */
-        .hamburger-icon {
-            width: 24px;
-            height: 18px;
-            position: relative;
-            margin: 0 auto;
-            transform: rotate(0deg);
-            transition: .5s ease-in-out;
-            cursor: pointer;
-        }
-        
-        .hamburger-icon span {
-            display: block;
-            position: absolute;
-            height: 2px;
-            width: 100%;
-            background: var(--dark);
-            border-radius: 9px;
-            opacity: 1;
-            left: 0;
-            transform: rotate(0deg);
-            transition: .25s ease-in-out;
-        }
-        
-        .hamburger-icon span:nth-child(1) {
-            top: 0px;
-        }
-        
-        .hamburger-icon span:nth-child(2), .hamburger-icon span:nth-child(3) {
-            top: 8px;
-        }
-        
-        .hamburger-icon span:nth-child(4) {
-            top: 16px;
-        }
-        
-        .hamburger-icon.open span:nth-child(1) {
-            top: 8px;
-            width: 0%;
-            left: 50%;
-        }
-        
-        .hamburger-icon.open span:nth-child(2) {
-            transform: rotate(45deg);
-        }
-        
-        .hamburger-icon.open span:nth-child(3) {
-            transform: rotate(-45deg);
-        }
-        
-        .hamburger-icon.open span:nth-child(4) {
-            top: 8px;
-            width: 0%;
-            left: 50%;
+        .nav-profile {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
         }
     </style>
 </head>
@@ -623,93 +424,47 @@ if (isset($_SESSION['user_id'])) {
         <div class="container mx-auto px-6">
             <div class="flex justify-between items-center">
                 <div class="flex items-center">
+                    <button id="menuToggle" class="text-[var(--dark)] mr-4 lg:hidden">
+                        <i class="fas fa-bars text-2xl"></i>
+                    </button>
                     <i class="fas fa-book-open text-2xl text-[var(--primary)] mr-3"></i>
                     <span class="font-bold text-xl text-[var(--dark)]">Novella</span>
                 </div>
                 <div class="hidden md:flex items-center space-x-8">
-                    <a href="profile.php" class="flex items-center text-[var(--dark)] hover:text-[var(--primary)] transition-colors">
+                    <a href="profile.php" class="nav-profile text-[var(--dark)] hover:text-[var(--primary)] transition-colors">
+                        <img src="<?php echo htmlspecialchars($profile_picture); ?>" alt="Profile Picture" class="profile-avatar w-8 h-8">
                         <span><?php echo htmlspecialchars($user['username']); ?></span>
                     </a>
-                </div>
-                <div class="md:hidden">
-                    <button id="menuBtn" class="text-[var(--dark)] focus:outline-none">
-                        <i class="fas fa-bars text-2xl"></i>
-                    </button>
-                </div>
-                <div id="scrollHamburger" class="hidden items-center relative">
-                    <button id="scrollMenuBtn" class="text-[var(--dark)] focus:outline-none p-2 hover:bg-gray-100 rounded-full transition-colors">
-                        <div class="hamburger-icon">
-                            <span></span>
-                            <span></span>
-                            <span></span>
-                            <span></span>
-                        </div>
-                    </button>
-                    <div id="scrollMenu" class="absolute right-0 mt-2 w-56 bg-white rounded-lg shadow-lg py-2 hidden">
-                        <div class="px-4 py-3 border-b border-gray-100">
-                            <div class="flex items-center">
-                                <img src="<?php echo $profile_picture; ?>" alt="Profile" class="w-10 h-10 rounded-full mr-3 profile-avatar object-cover">
-                                <div>
-                                    <div class="font-medium text-[var(--dark)]"><?php echo htmlspecialchars($user['username']); ?></div>
-                                    <div class="text-xs text-gray-500 truncate"><?php echo htmlspecialchars($user['email']); ?></div>
-                                </div>
-                            </div>
-                        </div>
-                        <a href="read_books.php" class="block px-4 py-3 text-sm text-[var(--dark)] hover:text-[var(--primary)]">
-                            <i class="fas fa-book mr-3"></i> My Collection
-                        </a>
-                        <a href="profile.php" class="block px-4 py-3 text-sm text-[var(--dark)] hover:text-[var(--primary)]">
-                            <i class="fas fa-user mr-3"></i> My Profile
-                        </a>
-                        <div class="border-t border-gray-100 my-2"></div>
-                        <a href="logout.php" class="block px-4 py-3 text-sm text-red-500 hover:text-red-700">
-                            <i class="fas fa-sign-out-alt mr-3"></i> Logout
-                        </a>
-                    </div>
                 </div>
             </div>
         </div>
     </nav>
 
-    <!-- Mobile Menu -->
-    <div id="menuOverlay" class="menu-overlay"></div>
-    <div id="mobileMenu" class="mobile-menu">
-        <div class="flex justify-end mb-6">
-            <button id="closeMenuBtn" class="text-[var(--dark)] focus:outline-none">
-                <i class="fas fa-times text-2xl"></i>
-            </button>
-        </div>
-        <div class="flex flex-col space-y-6">
-            <a href="profile.php" class="flex items-center text-[var(--dark)] hover:text-[var(--primary)] transition-colors">
-                <img src="<?php echo $profile_picture; ?>" alt="Profile" class="w-10 h-10 rounded-full mr-2 profile-avatar object-cover">
-                <span><?php echo htmlspecialchars($user['username']); ?></span>
-            </a>
-            <a href="read_books.php" class="text-[var(--dark)] hover:text-[var(--primary)] transition-colors py-2 border-b border-gray-200">
-                <i class="fas fa-book mr-3"></i> My Collection
-            </a>
-            <a href="profile.php" class="text-[var(--dark)] hover:text-[var(--primary)] transition-colors py-2 border-b border-gray-200">
-                <i class="fas fa-user mr-3"></i> Profile
-            </a>
-            <a href="logout.php" class="text-[var(--dark)] hover:text-[var(--primary)] transition-colors py-2 border-b border-gray-200">
-                <i class="fas fa-sign-out-alt mr-3"></i> Logout
-            </a>
-        </div>
-    </div>
-
-    <!-- Category Pills -->
-    <div class="container mx-auto px-6 mt-6">
-        <div class="glass-card p-4 mb-8 overflow-x-auto hide-scrollbar">
-            <div class="flex space-x-3 min-w-max">
-                <div class="category-pill active-pill" onclick="filterByGenre('All')">All Books</div>
-                <div class="category-pill" onclick="filterByGenre('Romance')">Romance</div>
-                <div class="category-pill" onclick="filterByGenre('Fantasy')">Fantasy</div>
-                <div class="category-pill" onclick="filterByGenre('SciFi')">Science Fiction</div>
-                <div class="category-pill" onclick="filterByGenre('Mystery')">Mystery</div>
-                <div class="category-pill" onclick="filterByGenre('Horror')">Horror</div>
-                <div class="category-pill" onclick="filterByGenre('Manga')">Manga</div>
+    <div class="mobile-menu" id="mobileMenu">
+        <div class="p-6">
+            <div class="flex items-center justify-between mb-8">
+                <h3 class="text-xl font-bold text-[var(--dark)]">Menu</h3>
+                <button id="closeMenu" class="text-[var(--dark)]">
+                    <i class="fas fa-times text-2xl"></i>
+                </button>
+            </div>
+            <div class="space-y-4">
+                <a href="profile.php" class="flex items-center p-3 text-[var(--dark)] hover:bg-[var(--primary)]/10 rounded-lg transition-colors">
+                    <i class="fas fa-user w-8"></i>
+                    <span>My Profile</span>
+                </a>
+                <a href="read_books.php" class="flex items-center p-3 text-[var(--dark)] hover:bg-[var(--primary)]/10 rounded-lg transition-colors">
+                    <i class="fas fa-book w-8"></i>
+                    <span>My Collection</span>
+                </a>
+                <a href="logout.php" class="flex items-center p-3 text-[var(--dark)] hover:bg-[var(--primary)]/10 rounded-lg transition-colors">
+                    <i class="fas fa-sign-out-alt w-8"></i>
+                    <span>Logout</span>
+                </a>
             </div>
         </div>
     </div>
+    <div class="menu-overlay" id="menuOverlay"></div>
 
     <div class="container mx-auto px-6">
         <div id="categoryResultsContainer" class="mb-12"></div>
@@ -723,46 +478,68 @@ if (isset($_SESSION['user_id'])) {
         <div id="genresContainer" class="space-y-12"></div>
     </div>
 
-    <footer class="glass-card mt-16 py-10 px-6">
+    <footer class="glass-card mt-16 py-10 px-6 relative z-10">
         <div class="container mx-auto">
             <div class="grid grid-cols-1 md:grid-cols-3 gap-8">
-                <div>
-                    <h3 class="text-xl font-bold mb-4 text-[var(--primary)]">About Novella</h3>
-                    <p class="text-gray-600">Discover your next favorite book with our curated collection of stories from around the world.</p>
+                <div class="transition-all duration-300 hover:transform hover:translate-y-[-5px]">
+                    <h3 class="text-xl font-bold mb-4 text-[var(--primary)] relative inline-block">
+                        About Novella
+                        <span class="absolute bottom-0 left-0 w-1/2 h-0.5 bg-[var(--primary)] transform scale-x-0 transition-transform duration-300 origin-left group-hover:scale-x-100"></span>
+                    </h3>
+                    <p class="text-gray-600 leading-relaxed">Discover your next favorite book with our curated collection of stories from around the world.</p>
                     <div class="mt-4 flex space-x-4">
-                        <a href="#" class="text-[var(--primary)] hover:text-[var(--light)]">
+                        <a href="#" class="w-8 h-8 flex items-center justify-center rounded-full bg-[var(--primary)]/10 text-[var(--primary)] hover:bg-[var(--primary)] hover:text-white transition-all duration-300">
                             <i class="fab fa-facebook-f"></i>
                         </a>
-                        <a href="#" class="text-[var(--primary)] hover:text-[var(--light)]">
+                        <a href="#" class="w-8 h-8 flex items-center justify-center rounded-full bg-[var(--primary)]/10 text-[var(--primary)] hover:bg-[var(--primary)] hover:text-white transition-all duration-300">
                             <i class="fab fa-twitter"></i>
                         </a>
-                        <a href="#" class="text-[var(--primary)] hover:text-[var(--light)]">
+                        <a href="#" class="w-8 h-8 flex items-center justify-center rounded-full bg-[var(--primary)]/10 text-[var(--primary)] hover:bg-[var(--primary)] hover:text-white transition-all duration-300">
                             <i class="fab fa-instagram"></i>
                         </a>
                     </div>
                 </div>
-                <div>
-                    <h3 class="text-xl font-bold mb-4 text-[var(--primary)]">Quick Links</h3>
-                    <ul class="space-y-2 text-gray-600">
-                        <li><a href="#" class="hover:text-[var(--primary)]">About Us</a></li>
-                        <li><a href="#" class="hover:text-[var(--primary)]">Contact</a></li>
-                        <li><a href="#" class="hover:text-[var(--primary)]">Privacy Policy</a></li>
-                        <li><a href="#" class="hover:text-[var(--primary)]">Terms of Service</a></li>
+                <div class="transition-all duration-300 hover:transform hover:translate-y-[-5px]">
+                    <h3 class="text-xl font-bold mb-4 text-[var(--primary)] relative inline-block">
+                        Quick Links
+                        <span class="absolute bottom-0 left-0 w-1/2 h-0.5 bg-[var(--primary)] transform scale-x-0 transition-transform duration-300 origin-left group-hover:scale-x-100"></span>
+                    </h3>
+                    <ul class="space-y-2">
+                        <li><a href="#" class="text-gray-600 hover:text-[var(--primary)] transition-colors duration-300 flex items-center"><i class="fas fa-chevron-right mr-2 text-xs"></i>About Us</a></li>
+                        <li><a href="#" class="text-gray-600 hover:text-[var(--primary)] transition-colors duration-300 flex items-center"><i class="fas fa-chevron-right mr-2 text-xs"></i>Contact</a></li>
+                        <li><a href="#" class="text-gray-600 hover:text-[var(--primary)] transition-colors duration-300 flex items-center"><i class="fas fa-chevron-right mr-2 text-xs"></i>Privacy Policy</a></li>
+                        <li><a href="#" class="text-gray-600 hover:text-[var(--primary)] transition-colors duration-300 flex items-center"><i class="fas fa-chevron-right mr-2 text-xs"></i>Terms of Service</a></li>
                     </ul>
                 </div>
-                <div>
-                    <h3 class="text-xl font-bold mb-4 text-[var(--primary)]">Visit Us</h3>
-                    <address class="not-italic text-gray-600">
-                        <p>123 Book Avenue</p>
-                        <p>Literary District</p>
-                        <p>Storyland, ST 12345</p>
-                        <p class="mt-2"><a href="tel:+11234567890" class="hover:text-[var(--primary)]">(123) 456-7890</a></p>
-                        <p><a href="mailto:hello@novella.com" class="hover:text-[var(--primary)]">hello@novella.com</a></p>
-                    </address>
+                <div class="transition-all duration-300 hover:transform hover:translate-y-[-5px]">
+                    <h3 class="text-xl font-bold mb-4 text-[var(--primary)] relative inline-block">
+                        Contact Us
+                        <span class="absolute bottom-0 left-0 w-1/2 h-0.5 bg-[var(--primary)] transform scale-x-0 transition-transform duration-300 origin-left group-hover:scale-x-100"></span>
+                    </h3>
+                    <ul class="space-y-3">
+                        <li class="flex items-center text-gray-600 hover:text-[var(--primary)] transition-colors duration-300">
+                            <span class="w-8 h-8 flex items-center justify-center rounded-full bg-[var(--primary)]/10 text-[var(--primary)] mr-3">
+                                <i class="fas fa-envelope"></i>
+                            </span>
+                            support@novella.com
+                        </li>
+                        <li class="flex items-center text-gray-600 hover:text-[var(--primary)] transition-colors duration-300">
+                            <span class="w-8 h-8 flex items-center justify-center rounded-full bg-[var(--primary)]/10 text-[var(--primary)] mr-3">
+                                <i class="fas fa-phone"></i>
+                            </span>
+                            +1 234 567 8900
+                        </li>
+                        <li class="flex items-center text-gray-600 hover:text-[var(--primary)] transition-colors duration-300">
+                            <span class="w-8 h-8 flex items-center justify-center rounded-full bg-[var(--primary)]/10 text-[var(--primary)] mr-3">
+                                <i class="fas fa-map-marker-alt"></i>
+                            </span>
+                            123 Book Street, Library City
+                        </li>
+                    </ul>
                 </div>
             </div>
-            <div class="mt-8 pt-8 border-t border-gray-200 text-center text-gray-600">
-                <p>Made with <i class="fas fa-heart text-[var(--primary)]"></i> for book lovers • Powered by Open Library API</p>
+            <div class="mt-8 pt-8 border-t border-gray-200/50 text-center text-gray-600">
+                <p>Made with <i class="fas fa-heart text-[var(--primary)] hover:scale-110 transition-transform duration-300 inline-block"></i> for book lovers • Powered by Open Library API</p>
             </div>
         </div>
     </footer>
@@ -773,48 +550,45 @@ if (isset($_SESSION['user_id'])) {
             particlesJS('particles-js', {
                 "particles": {
                     "number": {
-                        "value": 50,
+                        "value": 80,
                         "density": {
                             "enable": true,
                             "value_area": 800
                         }
                     },
                     "color": {
-                        "value": ["#FF8383", "#A1D6CB", "#A19AD3"]
-                    },
-                    "shape": {
-                        "type": ["circle"],
-                        "stroke": {
-                            "width": 0,
-                            "color": "#000000"
-                        }
+                        "value": [
+                            "#F06262",
+                            "#4DB6AC",
+                            "#7B5EAB"
+                        ]
                     },
                     "opacity": {
-                        "value": 0.4,
+                        "value": 0.5,
                         "random": true,
                         "anim": {
                             "enable": true,
                             "speed": 1,
-                            "opacity_min": 0.2,
+                            "opacity_min": 0.3,
                             "sync": false
                         }
                     },
                     "size": {
-                        "value": 8,
+                        "value": 4,
                         "random": true,
                         "anim": {
                             "enable": true,
                             "speed": 1,
-                            "size_min": 3,
+                            "size_min": 0.1,
                             "sync": false
                         }
                     },
                     "line_linked": {
                         "enable": true,
-                        "distance": 150,
-                        "color": "#A19AD3",
-                        "opacity": 0.3,
-                        "width": 1.5
+                        "distance": 190,
+                        "color": "#4DB6AC",
+                        "opacity": 0.4,
+                        "width": 1
                     },
                     "move": {
                         "enable": true,
@@ -823,7 +597,7 @@ if (isset($_SESSION['user_id'])) {
                         "random": true,
                         "straight": false,
                         "out_mode": "out",
-                        "bounce": false,
+                        "bounce": false
                     }
                 },
                 "interactivity": {
@@ -842,145 +616,70 @@ if (isset($_SESSION['user_id'])) {
                     "modes": {
                         "bubble": {
                             "distance": 150,
-                            "size": 10,
+                            "size": 4,
                             "duration": 2,
                             "opacity": 0.8,
                             "speed": 3
                         },
                         "push": {
-                            "particles_nb": 4
+                            "particles_nb": 3
                         }
                     }
                 },
                 "retina_detect": true
             });
-
-            // Mobile menu functionality
-            const menuBtn = document.getElementById('menuBtn');
-            const closeMenuBtn = document.getElementById('closeMenuBtn');
-            const mobileMenu = document.getElementById('mobileMenu');
-            const menuOverlay = document.getElementById('menuOverlay');
-
-            menuBtn.addEventListener('click', () => {
-                mobileMenu.classList.add('active');
-                menuOverlay.classList.add('active');
-                document.body.style.overflow = 'hidden';
-            });
-
-            function closeMenu() {
-                mobileMenu.classList.remove('active');
-                menuOverlay.classList.remove('active');
-                document.body.style.overflow = '';
-            }
-
-            closeMenuBtn.addEventListener('click', closeMenu);
-            menuOverlay.addEventListener('click', closeMenu);
-
-            // 滚动时汉堡菜单功能
-            const scrollHamburger = document.getElementById('scrollHamburger');
-            const scrollMenuBtn = document.getElementById('scrollMenuBtn');
-            const scrollMenu = document.getElementById('scrollMenu');
-            const hamburgerIcon = document.querySelector('#scrollMenuBtn .hamburger-icon');
-            const header = document.querySelector('header');
-            const nav = document.querySelector('nav');
-            
-            // 在视图宽度超过768px时控制汉堡菜单的显示
-            function toggleScrollHamburger() {
-                if (window.innerWidth >= 768) { // md断点
-                    const headerBottom = header.getBoundingClientRect().bottom;
-                    if (headerBottom <= 0) {
-                        scrollHamburger.classList.remove('hidden');
-                        scrollHamburger.classList.add('flex');
-                        
-                        // 添加平滑淡入效果
-                        scrollHamburger.style.opacity = '1';
-                    } else {
-                        // 平滑淡出
-                        scrollHamburger.style.opacity = '0';
-                        setTimeout(() => {
-                            if (header.getBoundingClientRect().bottom > 0) {
-                                scrollHamburger.classList.add('hidden');
-                                scrollHamburger.classList.remove('flex');
-                                // 确保菜单关闭
-                                scrollMenu.classList.remove('active');
-                                scrollMenu.classList.add('hidden');
-                                hamburgerIcon.classList.remove('open');
-                            }
-                        }, 300);
-                    }
-                } else {
-                    scrollHamburger.classList.add('hidden');
-                    scrollHamburger.classList.remove('flex');
-                }
-            }
-
-            // 点击滚动汉堡菜单按钮时的行为
-            scrollMenuBtn.addEventListener('click', (e) => {
-                e.stopPropagation();
-                
-                // 切换汉堡图标动画
-                hamburgerIcon.classList.toggle('open');
-                
-                // 使用active类实现平滑过渡，而不是直接使用hidden
-                if (scrollMenu.classList.contains('active')) {
-                    scrollMenu.classList.remove('active');
-                    setTimeout(() => {
-                        scrollMenu.classList.add('hidden');
-                    }, 200); // 等待过渡完成
-                } else {
-                    scrollMenu.classList.remove('hidden');
-                    // 强制重绘以触发动画
-                    scrollMenu.offsetHeight;
-                    scrollMenu.classList.add('active');
-                }
-            });
-
-            // 点击文档其他位置关闭菜单
-            document.addEventListener('click', (e) => {
-                if (!scrollMenu.contains(e.target) && e.target !== scrollMenuBtn && !scrollMenuBtn.contains(e.target)) {
-                    hamburgerIcon.classList.remove('open');
-                    scrollMenu.classList.remove('active');
-                    setTimeout(() => {
-                        scrollMenu.classList.add('hidden');
-                    }, 200);
-                }
-            });
-
-            // 监听滚动和调整大小事件
-            window.addEventListener('scroll', toggleScrollHamburger);
-            window.addEventListener('resize', toggleScrollHamburger);
-            
-            // 初始设置
-            scrollHamburger.style.opacity = '0';
-            toggleScrollHamburger();
-
-            // Add data-scroll-trigger to all scroll containers
-            document.querySelectorAll('.scroll-container').forEach(container => {
-                container.setAttribute('data-scroll-trigger', 'true');
-            });
-
-            // Apply fade-in animation classes to hero elements
-            const heroElements = document.querySelectorAll('.hero-content > *');
-            heroElements.forEach((el, index) => {
-                el.classList.add('fade-in', `delay-${(index % 3) + 1}`);
-            });
         });
 
+        document.getElementById('menuToggle').addEventListener('click', function() {
+            document.getElementById('mobileMenu').classList.add('active');
+            document.getElementById('menuOverlay').classList.add('active');
+            document.body.style.overflow = 'hidden';
+        });
+
+        document.getElementById('closeMenu').addEventListener('click', closeMenu);
+        document.getElementById('menuOverlay').addEventListener('click', closeMenu);
+
+        function closeMenu() {
+            document.getElementById('mobileMenu').classList.remove('active');
+            document.getElementById('menuOverlay').classList.remove('active');
+            document.body.style.overflow = '';
+        }
+
         function handleScroll() {
+            // Animate book cards
             const cards = document.querySelectorAll('.book-card');
             cards.forEach(card => {
                 const rect = card.getBoundingClientRect();
                 const windowHeight = window.innerHeight || document.documentElement.clientHeight;
-                if (rect.top <= windowHeight * 0.9) {
+                if (rect.top <= windowHeight * 0.7) {
                     card.classList.add('visible');
                 }
             });
 
+            // Animate scroll containers
+            const scrollContainers = document.querySelectorAll('.scroll-container');
+            scrollContainers.forEach(container => {
+                const rect = container.getBoundingClientRect();
+                const windowHeight = window.innerHeight || document.documentElement.clientHeight;
+                if (rect.top <= windowHeight * 0.8) {
+                    container.classList.add('visible');
+                }
+            });
+
+            // Handle scroll-to-top button visibility
             const scrollButton = document.getElementById('scrollToTop');
             if (window.scrollY > 300) {
                 scrollButton.classList.add('visible');
             } else {
                 scrollButton.classList.remove('visible');
+            }
+
+            // Handle menu toggle visibility
+            const menuToggle = document.getElementById('menuToggle');
+            if (window.scrollY > 100) {
+                menuToggle.classList.remove('lg:hidden');
+            } else {
+                menuToggle.classList.add('lg:hidden');
             }
         }
 
@@ -1095,7 +794,7 @@ if (isset($_SESSION['user_id'])) {
                     author: book.authors?.[0]?.name || "Unknown Author",
                     cover: book.cover_id
                         ? `https://covers.openlibrary.org/b/id/${book.cover_id}-M.jpg`
-                        : "https://via.placeholder.com/150x220",
+                        : "https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcS1yg_rIUE_FzrkgJGIrpCu_e45OFLXH5GByg&s",
                     olid: book.key.split("/").pop(),
                     firstPublishYear: book.first_publish_year || "N/A"
                 }));
@@ -1149,30 +848,20 @@ if (isset($_SESSION['user_id'])) {
             for (const genre of genres) {
                 const books = await fetchBooks(genre.key);
                 const genreSection = document.createElement("div");
-                genreSection.classList.add("glass-card", "p-6", "transform", "transition-all", "duration-500");
-                genreSection.dataset.aos = "fade-up";
-                
+                genreSection.classList.add("glass-card", "p-6");
                 genreSection.innerHTML = `
-                    <div class="flex items-center justify-between mb-6 flex-wrap">
-                        <div class="flex items-center mb-2 sm:mb-0">
-                            <div class="bg-[var(--primary)] text-white p-3 rounded-full mr-4 transform transition-transform hover:scale-110 duration-300">
-                                <i class="fas ${genre.icon} text-xl"></i>
-                            </div>
-                            <h2 class="text-2xl font-bold text-[var(--dark)] genre-title">${genre.name}</h2>
+                    <div class="flex items-center mb-6">
+                        <div class="bg-[var(--primary)] text-white p-3 rounded-full mr-4">
+                            <i class="fas ${genre.icon} text-xl"></i>
                         </div>
-                      
+                        <h2 class="text-2xl font-bold text-[var(--dark)] genre-title">${genre.name}</h2>
                     </div>
-                    <div class="scroll-container overflow-x-auto pb-4" data-scroll-trigger="true">
+                    <div class="scroll-container overflow-x-auto pb-4">
                         <div class="flex gap-6">
-                            ${books.map((book, index) => `
-                                <div class="book-card w-48 sm:w-52 md:w-56 flex-shrink-0 transition-all duration-700 ease-out" 
-                                    style="transition-delay: ${index * 50}ms" 
-                                    onclick="window.location.href='book_details.php?olid=${book.olid}'">
+                            ${books.map(book => `
+                                <div class="book-card w-48 sm:w-52 md:w-56 flex-shrink-0 transition-opacity duration-700 ease-out" onclick="window.location.href='book_details.php?olid=${book.olid}'">
                                     <div class="relative h-64 overflow-hidden rounded-t-lg">
                                         <img src="${book.cover}" alt="${book.title}" class="book-cover w-full h-full object-cover">
-                                        <div class="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent opacity-0 transition-opacity duration-300 flex items-end p-3 hover:opacity-100">
-                                            <span class="text-white text-xs font-medium">${book.title}</span>
-                                        </div>
                                     </div>
                                     <div class="p-4 bg-white rounded-b-lg">
                                         <h3 class="text-sm font-medium line-clamp-2 h-10 text-[var(--dark)]">${book.title}</h3>
@@ -1187,115 +876,19 @@ if (isset($_SESSION['user_id'])) {
                                             </div>
                                             <span class="text-xs px-2 py-1 bg-[var(--light-bg)] text-[var(--dark)] rounded-full">${book.firstPublishYear}</span>
                                         </div>
-                                        <button class="mt-3 w-full btn-primary py-2 rounded-full text-xs font-medium group">
-                                            <span class="group-hover:mr-2 transition-all">View Book</span>
-                                            <i class="fas fa-arrow-right opacity-0 group-hover:opacity-100 transition-all"></i>
+                                        <button class="mt-3 w-full btn-primary py-2 rounded-full text-xs font-medium">
+                                            View Book
                                         </button>
                                     </div>
                                 </div>
                             `).join('')}
                         </div>
                     </div>
-                    <div class="scroll-indicator mt-4 flex justify-center items-center space-x-1">
-                        <div class="h-1 w-12 bg-[var(--primary)] rounded-full"></div>
-                        <div class="h-1 w-12 bg-gray-200 rounded-full"></div>
-                        <div class="h-1 w-12 bg-gray-200 rounded-full"></div>
-                    </div>
                 `;
                 genresContainer.appendChild(genreSection);
-
-                // Monitor scroll position for scroll indicator
-                const scrollContainer = genreSection.querySelector('.scroll-container');
-                scrollContainer.addEventListener('scroll', () => {
-                    const scrollPosition = scrollContainer.scrollLeft;
-                    const maxScroll = scrollContainer.scrollWidth - scrollContainer.clientWidth;
-                    const progress = Math.min(Math.max(scrollPosition / maxScroll, 0), 1);
-                    
-                    const indicators = genreSection.querySelectorAll('.scroll-indicator > div');
-                    if (progress < 0.33) {
-                        indicators[0].classList.add('bg-[var(--primary)]');
-                        indicators[1].classList.remove('bg-[var(--primary)]');
-                        indicators[2].classList.remove('bg-[var(--primary)]');
-                    } else if (progress < 0.66) {
-                        indicators[0].classList.remove('bg-[var(--primary)]');
-                        indicators[1].classList.add('bg-[var(--primary)]');
-                        indicators[2].classList.remove('bg-[var(--primary)]');
-                    } else {
-                        indicators[0].classList.remove('bg-[var(--primary)]');
-                        indicators[1].classList.remove('bg-[var(--primary)]');
-                        indicators[2].classList.add('bg-[var(--primary)]');
-                    }
-                });
-                
                 handleScroll();
             }
-
-            // Add scroll observers for animation
-            const observerOptions = {
-                root: null,
-                rootMargin: '0px',
-                threshold: 0.1
-            };
-
-            const genreSections = document.querySelectorAll('.glass-card[data-aos]');
-            const observer = new IntersectionObserver((entries) => {
-                entries.forEach(entry => {
-                    if (entry.isIntersecting) {
-                        entry.target.classList.add('translate-y-0', 'opacity-100');
-                        entry.target.classList.remove('translate-y-10', 'opacity-0');
-                        observer.unobserve(entry.target);
-                    }
-                });
-            }, observerOptions);
-
-            genreSections.forEach(section => {
-                section.classList.add('translate-y-10', 'opacity-0');
-                observer.observe(section);
-            });
         }
-
-        // Scroll Trigger for Horizontal Scroll
-        function setupScrollTrigger() {
-            const containers = document.querySelectorAll('.scroll-container[data-scroll-trigger]');
-
-            containers.forEach(container => {
-                const observer = new IntersectionObserver(
-                    (entries) => {
-                        entries.forEach(entry => {
-                            if (entry.isIntersecting) {
-                                // Enable horizontal scroll on wheel event
-                                container.addEventListener('wheel', handleWheelScroll, { passive: false });
-                            } else {
-                                // Remove event listener when out of view
-                                container.removeEventListener('wheel', handleWheelScroll);
-                            }
-                        });
-                    },
-                    { threshold: 0.2 } // Trigger when 20% of the container is visible
-                );
-
-                observer.observe(container);
-            });
-
-            function handleWheelScroll(event) {
-                event.preventDefault(); // Prevent default vertical scroll
-                const container = event.currentTarget;
-                const scrollAmount = event.deltaY * 0.5; // Adjust scroll speed (0.5 for smoother effect)
-                container.scrollLeft += scrollAmount;
-
-                // Check if at scroll boundaries to allow vertical scroll
-                const isAtStart = container.scrollLeft <= 0 && event.deltaY < 0;
-                const isAtEnd = container.scrollLeft >= (container.scrollWidth - container.clientWidth - 1) && event.deltaY > 0;
-
-                if (isAtStart || isAtEnd) {
-                    // Allow vertical scroll at boundaries
-                    window.scrollBy(0, event.deltaY);
-                }
-            }
-        }
-
-        // Call setupScrollTrigger after DOM is loaded
-        document.addEventListener('DOMContentLoaded', setupScrollTrigger);
 
         async function searchBooks() {
             const query = document.getElementById("searchInput").value;
