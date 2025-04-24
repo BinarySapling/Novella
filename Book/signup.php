@@ -14,7 +14,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
     $password = $_POST['password'];
     $confirm_password = $_POST['confirm_password'];
 
-    // Validate inputs
+    
     if (empty($username) || empty($email) || empty($password) || empty($confirm_password)) {
         $error = 'Please fill in all fields';
     } elseif ($password !== $confirm_password) {
@@ -24,17 +24,17 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
     } elseif (strlen($password) < 8) {
         $error = 'Password must be at least 8 characters long';
     } else {
-        // Check for existing username or email
+      
         $stmt = $pdo->prepare("SELECT id FROM users WHERE username = ? OR email = ?");
         $stmt->execute([$username, $email]);
         if ($stmt->fetch()) {
             $error = 'Username or email already exists';
         } else {
-            // Handle profile picture upload
+           
             $profile_picture = null;
             if (isset($_FILES['profile_picture']) && $_FILES['profile_picture']['error'] == UPLOAD_ERR_OK) {
                 $allowed_types = ['image/jpeg', 'image/png'];
-                $max_size = 2 * 1024 * 1024; // 2MB
+                $max_size = 2 * 1024 * 1024; 
                 $file_type = mime_content_type($_FILES['profile_picture']['tmp_name']);
                 $file_size = $_FILES['profile_picture']['size'];
 
@@ -90,12 +90,12 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
     <style>
         :root {
-            --primary: #FF8383; /* Coral Pink */
-            --secondary: #FFF574; /* Bright Yellow */
-            --accent: #A1D6CB; /* Mint Green */
-            --light: #A19AD3; /* Lavender */
-            --dark: #2D2A40; /* Deep Purple for contrast */
-            --light-bg: #f0f4ff; /* Light blue-ish background */
+            --primary: #FF8383; 
+            --secondary: #FFF574; 
+            --accent: #A1D6CB; 
+            --light: #A19AD3; 
+            --dark: #2D2A40; 
+            --light-bg: #f0f4ff; 
         }
 
         body {
@@ -414,9 +414,9 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
     </div>
 
     <script>
-        // Interactive background animation with Three.js
+      
         document.addEventListener('DOMContentLoaded', function() {
-            // Set up scene
+        
             const scene = new THREE.Scene();
             const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
             const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
@@ -425,17 +425,17 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
             renderer.setClearColor(0x000000, 0);
             document.getElementById('canvas-container').appendChild(renderer.domElement);
             
-            // Add floating particles
+            
             const particles = new THREE.Group();
             scene.add(particles);
             
-            // Adjust particle count based on screen size
+       
             const particleCount = window.innerWidth < 768 ? 30 : 50;
             const colors = [
-                new THREE.Color('#FF8383'),  // Coral Pink
-                new THREE.Color('#A1D6CB'),  // Mint Green
-                new THREE.Color('#A19AD3'),  // Lavender
-                new THREE.Color('#FFF574')   // Yellow
+                new THREE.Color('#FF8383'), 
+                new THREE.Color('#A1D6CB'),  
+                new THREE.Color('#A19AD3'),  
+                new THREE.Color('#FFF574')   
             ];
             
             for (let i = 0; i < particleCount; i++) {
@@ -528,11 +528,11 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                 }
             });
 
-            // Profile picture upload functionality
+        
             const fileInput = document.getElementById('profile_picture');
             const profilePicturePreview = document.getElementById('profile-picture-preview');
 
-            // Set default placeholder image
+           
             profilePicturePreview.src = 'https://media.istockphoto.com/id/1495088043/vector/user-profile-icon-avatar-or-person-icon-profile-picture-portrait-symbol-default-portrait.jpg?s=612x612&w=0&k=20&c=dhV2p1JwmloBTOaGAtaA3AW1KSnjsdMt7-U_3EZElZ0=';
 
             fileInput.addEventListener('change', function() {
